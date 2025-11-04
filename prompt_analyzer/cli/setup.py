@@ -45,10 +45,12 @@ def setup(storage_path: Path, hooks_dir: Path, overwrite: bool):
     
     # Install hooks
     click.echo("Installing Cursor hooks...")
+    click.echo("Checking Node.js dependencies...")
     success, message = install_hooks(
         storage_path=storage_path,
         hooks_dir=hooks_dir,
         overwrite=overwrite,
+        check_dependencies=True,
     )
     
     if success:

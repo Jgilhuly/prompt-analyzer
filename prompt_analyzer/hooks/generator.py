@@ -147,72 +147,86 @@ function updatePromptAction(promptId, userAction) {
 }
 
 // Main hook handler
-function handleHook(input) {
+function handleHook(input, hookType) {
   try {
-    const {
-      conversation_id,
-      generation_id,
-      hook_event_name,
-      workspace_roots
-    } = input;
+    // Extract common fields
+    const conversation_id = input.conversation_id || input.conversationId || input.session_id || input.sessionId;
+    const generation_id = input.generation_id || input.generationId || input.id;
+    
+    // Determine hook type from parameter, environment, or input
+    // Cursor may pass hook type in different ways
+    const hook_event_name = hookType || 
+                           process.env.CURSOR_HOOK_TYPE ||
+                           input.hook_event_name || 
+                           input.hookType || 
+                           input.type ||
+                           input.hook_type ||
+                           'unknown';
+
+    // Detect hook type from input structure if not explicitly provided
+    // beforeSubmitPrompt typically has prompt-related fields
+    // afterAgentResponse typically has response-related fields
+    const hasPromptFields = input.prompt !== undefined || input.prompt_text !== undefined || 
+                           input.message !== undefined || (input.text && !input.response);
+    const hasResponseFields = input.response !== undefined || input.response_text !== undefined || 
+                              input.content !== undefined || (input.text && input.response !== undefined);
 
     // Handle different hook event types
-    switch (hook_event_name) {
-      case 'composer.prompt.submitted':
-      case 'composer.prompt.sent':
-        // Extract prompt text from input
-        const promptText = input.prompt_text || input.message || JSON.stringify(input);
+    if (hook_event_name === 'beforeSubmitPrompt' || (hook_event_name === 'unknown' && hasPromptFields && !hasResponseFields)) {
+      // Extract prompt text from input
+      // Cursor passes the prompt in various possible fields
+      const promptText = input.prompt || input.prompt_text || input.message || 
+                       input.text || input.content || JSON.stringify(input);
+      
+      insertPrompt({
+        conversation_id,
+        generation_id,
+        hook_event_name: 'beforeSubmitPrompt',
+        prompt_text: promptText,
+        user_action: null
+      });
+    } else if (hook_event_name === 'afterAgentResponse' || (hook_event_name === 'unknown' && hasResponseFields)) {
+      // Extract response text
+      const responseText = input.response || input.response_text || input.content || 
+                          input.message || input.text || JSON.stringify(input);
+      
+      // Try to find the corresponding prompt by conversation_id and update it
+      const updateResponse = db.prepare(`
+        UPDATE prompts 
+        SET response_text = ? 
+        WHERE session_id = ? AND response_text IS NULL 
+        ORDER BY sequence_number DESC LIMIT 1
+      `);
+      updateResponse.run(responseText, conversation_id);
+      
+      // If no matching prompt found, create a new entry
+      const check = db.prepare('SELECT COUNT(*) as count FROM prompts WHERE session_id = ? AND response_text IS NULL').get(conversation_id);
+      if (check.count === 0) {
+        // Create a new prompt entry with just the response (edge case)
         insertPrompt({
           conversation_id,
           generation_id,
-          hook_event_name,
-          prompt_text: promptText,
+          hook_event_name: 'afterAgentResponse',
+          prompt_text: '',
+          response_text: responseText,
           user_action: null
         });
-        break;
-
-      case 'composer.response.received':
-      case 'composer.response.generated':
-        // Extract response text
-        const responseText = input.response_text || input.response || input.content || JSON.stringify(input);
-        // Try to find the corresponding prompt by generation_id or conversation_id
-        const updateResponse = db.prepare(`
-          UPDATE prompts 
-          SET response_text = ? 
-          WHERE session_id = ? AND response_text IS NULL 
-          ORDER BY sequence_number DESC LIMIT 1
-        `);
-        updateResponse.run(responseText, conversation_id);
-        break;
-
-      case 'composer.response.accepted':
-      case 'composer.suggestion.accepted':
-        updatePromptAction(generation_id, 'accepted');
-        break;
-
-      case 'composer.response.rejected':
-      case 'composer.suggestion.rejected':
-        updatePromptAction(generation_id, 'rejected');
-        break;
-
-      case 'composer.response.edited':
-      case 'composer.suggestion.edited':
-        updatePromptAction(generation_id, 'edited');
-        break;
-
-      default:
-        // Fallback: try to extract prompt/response from any event
-        if (input.prompt_text || input.message) {
-          insertPrompt({
-            conversation_id,
-            generation_id,
-            hook_event_name,
-            prompt_text: input.prompt_text || input.message,
-            response_text: input.response_text || input.response || null,
-            user_action: input.user_action || null
-          });
-        }
-        break;
+      }
+    } else {
+      // Fallback: try to extract prompt/response from any event
+      const promptText = input.prompt || input.prompt_text || input.message || null;
+      const responseText = input.response || input.response_text || input.content || null;
+      
+      if (promptText || responseText) {
+        insertPrompt({
+          conversation_id,
+          generation_id,
+          hook_event_name: hook_event_name,
+          prompt_text: promptText || '',
+          response_text: responseText || null,
+          user_action: input.user_action || null
+        });
+      }
     }
 
     return { success: true };
@@ -227,6 +241,10 @@ if (require.main === module) {
   let inputData = '';
   process.stdin.setEncoding('utf8');
   
+  // Get hook type from command line argument or environment variable
+  // Cursor may pass hook type as an argument: node script.js beforeSubmitPrompt
+  const hookType = process.argv[2] || process.env.CURSOR_HOOK_TYPE;
+  
   process.stdin.on('data', (chunk) => {
     inputData += chunk;
   });
@@ -234,7 +252,7 @@ if (require.main === module) {
   process.stdin.on('end', () => {
     try {
       const input = JSON.parse(inputData);
-      const result = handleHook(input);
+      const result = handleHook(input, hookType);
       process.stdout.write(JSON.stringify(result));
       process.exit(result.success ? 0 : 1);
     } catch (error) {
@@ -265,23 +283,17 @@ def get_hooks_json_content(hook_script_path: Path) -> dict:
     # Convert to relative path from ~/.cursor/ if possible, otherwise use absolute
     script_path_str = str(hook_script_path)
     
+    # Cursor hooks.json format requires:
+    # - version: number
+    # - hooks: object mapping event names to arrays of hook commands
+    # Valid hook types: beforeShellExecution, beforeMCPExecution, afterShellExecution,
+    # afterMCPExecution, beforeReadFile, afterFileEdit, stop, beforeSubmitPrompt, afterAgentResponse
+    # Pass hook type as argument so the script knows which hook was triggered
     return {
-        "hooks": [
-            {
-                "hook": script_path_str,
-                "events": [
-                    "composer.prompt.submitted",
-                    "composer.prompt.sent",
-                    "composer.response.received",
-                    "composer.response.generated",
-                    "composer.response.accepted",
-                    "composer.response.rejected",
-                    "composer.response.edited",
-                    "composer.suggestion.accepted",
-                    "composer.suggestion.rejected",
-                    "composer.suggestion.edited"
-                ]
-            }
-        ]
+        "version": 1,
+        "hooks": {
+            "beforeSubmitPrompt": [{"command": f"node {script_path_str} beforeSubmitPrompt"}],
+            "afterAgentResponse": [{"command": f"node {script_path_str} afterAgentResponse"}]
+        }
     }
 
