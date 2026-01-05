@@ -29,6 +29,11 @@ dependencies = [
     "thefuzz>=0.19.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/fieldsphere/prompt-analyzer"
+Repository = "https://github.com/fieldsphere/prompt-analyzer"
+Issues = "https://github.com/fieldsphere/prompt-analyzer/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
