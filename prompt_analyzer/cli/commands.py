@@ -2,7 +2,7 @@
 
 import click
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from ..storage import PromptStorage
 from ..analysis import PromptAnalyzer
@@ -10,6 +10,7 @@ from ..storage.paths import get_database_path
 from ..ui import format_stats, format_examples, format_storage_info, parse_time_range
 from ..recommend.analyzer import analyze_project_prompts, analyze_cross_project_patterns
 from ..recommend.html_output import generate_html, save_and_open_html
+from ..recommend.scanner import scan_all_existing
 
 
 def format_timestamp(iso_string: str) -> str:
@@ -304,6 +305,9 @@ def recommend(since: str, project: Optional[str], no_open: bool):
         click.echo(f"Error: Invalid time range format '{since}'. Use format like '7d', '30d', '1h'", err=True)
         return
     
+    # Get all prompts for the log view
+    all_prompts = storage.list(since=since_timestamp)
+    
     # Get prompts
     if project:
         prompts = storage.list(since=since_timestamp, project_path=project)
@@ -317,6 +321,7 @@ def recommend(since: str, project: Optional[str], no_open: bool):
         project_recs = analyze_project_prompts(prompts, project_path=project)
         global_recs = []
         project_recommendations = {project: project_recs} if project_recs else {}
+        project_paths_to_scan = [project] if project else []
     else:
         # Get prompts grouped by project
         prompts_by_project = storage.list_by_project(since=since_timestamp)
@@ -334,15 +339,48 @@ def recommend(since: str, project: Optional[str], no_open: bool):
         
         # Analyze each project
         project_recommendations = {}
+        project_paths_to_scan = []
         for project_path, prompts in prompts_by_project.items():
             click.echo(f"Analyzing project: {project_path}...", err=True)
             recs = analyze_project_prompts(prompts, project_path=project_path)
             if recs:
                 project_recommendations[project_path] = recs
+            if project_path:
+                project_paths_to_scan.append(project_path)
+    
+    # Scan for existing rules and commands
+    click.echo("Scanning for existing rules and commands...", err=True)
+    existing = scan_all_existing(project_paths=project_paths_to_scan, include_cwd=True)
+    
+    # Filter out duplicates from recommendations
+    existing_names = set()
+    for rule in existing.get('rules', []):
+        existing_names.add(rule.get('name', '').lower())
+    for cmd in existing.get('commands', []):
+        existing_names.add(cmd.get('name', '').lower())
+    
+    def filter_duplicates(recs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Filter out recommendations that match existing names."""
+        filtered = []
+        for rec in recs:
+            rec_name = rec.get('name', '').lower()
+            if rec_name not in existing_names:
+                filtered.append(rec)
+        return filtered
+    
+    # Filter duplicates
+    global_recs = filter_duplicates(global_recs)
+    for project_path in project_recommendations:
+        project_recommendations[project_path] = filter_duplicates(project_recommendations[project_path])
     
     # Generate HTML
     click.echo("Generating recommendations page...", err=True)
-    html_content = generate_html(global_recs, project_recommendations)
+    html_content = generate_html(
+        global_recs,
+        project_recommendations,
+        prompts=all_prompts,
+        existing=existing,
+    )
     
     # Save and open
     file_path = save_and_open_html(html_content)
@@ -362,4 +400,9 @@ def recommend(since: str, project: Optional[str], no_open: bool):
         for project_path, recs in project_recommendations.items():
             if recs:
                 click.echo(f"  - {len(recs)} for {project_path}")
+    
+    # Show existing count
+    existing_count = len(existing.get('rules', [])) + len(existing.get('commands', []))
+    if existing_count > 0:
+        click.echo(f"\nFound {existing_count} existing rule(s)/command(s) ({len(existing.get('rules', []))} rules, {len(existing.get('commands', []))} commands)")
 
