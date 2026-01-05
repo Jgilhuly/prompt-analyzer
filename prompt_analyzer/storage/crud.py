@@ -8,6 +8,7 @@ from uuid import uuid4
 import sqlite3
 
 from .database import Database
+from .filters import should_exclude_prompt
 
 
 class PromptStorage:
@@ -135,8 +136,21 @@ class PromptStorage:
         since: Optional[str] = None,
         user_action: Optional[str] = None,
         session_id: Optional[str] = None,
+        include_excluded: bool = False,
     ) -> List[Dict[str, Any]]:
-        """List prompts with optional filters."""
+        """List prompts with optional filters.
+        
+        Args:
+            limit: Maximum number of prompts to return
+            offset: Number of prompts to skip
+            since: ISO timestamp to filter prompts
+            user_action: Filter by user action
+            session_id: Filter by session ID
+            include_excluded: If True, include prompts that would normally be excluded
+            
+        Returns:
+            List of prompt dictionaries
+        """
         conn = self.db.connect()
         cursor = conn.cursor()
 
@@ -168,19 +182,39 @@ class PromptStorage:
         cursor.execute(query, params)
         rows = cursor.fetchall()
 
-        return [self._row_to_dict(row) for row in rows]
+        prompts = [self._row_to_dict(row) for row in rows]
+        
+        # Filter out excluded prompts unless explicitly requested
+        if not include_excluded:
+            prompts = [
+                prompt for prompt in prompts
+                if not should_exclude_prompt(prompt.get('prompt_text', ''))
+            ]
+        
+        return prompts
 
     def count(
         self,
         since: Optional[str] = None,
         user_action: Optional[str] = None,
         session_id: Optional[str] = None,
+        include_excluded: bool = False,
     ) -> int:
-        """Count prompts with optional filters."""
+        """Count prompts with optional filters.
+        
+        Args:
+            since: ISO timestamp to filter prompts
+            user_action: Filter by user action
+            session_id: Filter by session ID
+            include_excluded: If True, include prompts that would normally be excluded
+            
+        Returns:
+            Number of prompts matching the filters
+        """
         conn = self.db.connect()
         cursor = conn.cursor()
 
-        query = "SELECT COUNT(*) FROM prompts WHERE 1=1"
+        query = "SELECT * FROM prompts WHERE 1=1"
         params = []
 
         if since:
@@ -196,7 +230,18 @@ class PromptStorage:
             params.append(session_id)
 
         cursor.execute(query, params)
-        return cursor.fetchone()[0]
+        rows = cursor.fetchall()
+        
+        prompts = [self._row_to_dict(row) for row in rows]
+        
+        # Filter out excluded prompts unless explicitly requested
+        if not include_excluded:
+            prompts = [
+                prompt for prompt in prompts
+                if not should_exclude_prompt(prompt.get('prompt_text', ''))
+            ]
+        
+        return len(prompts)
 
     def delete(
         self,

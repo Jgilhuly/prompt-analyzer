@@ -10,6 +10,7 @@ from .paths import (
     get_config_path,
     ensure_directories,
 )
+from .filters import EXCLUDED_PROMPTS, should_exclude_prompt
 
 __all__ = [
     "Database",
@@ -20,4 +21,6 @@ __all__ = [
     "get_database_path",
     "get_config_path",
     "ensure_directories",
+    "EXCLUDED_PROMPTS",
+    "should_exclude_prompt",
 ]
