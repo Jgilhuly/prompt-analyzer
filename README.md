@@ -22,12 +22,14 @@ pip install prompt-analyzer
    ```bash
    prompt-analyzer stats              # View statistics
    prompt-analyzer examples --type rejected  # See problematic prompts
+   prompt-analyzer recommend          # Generate Cursor rules and commands recommendations
    ```
 
 ## Quick Commands
 
 - `prompt-analyzer stats [--since 7d]` - Show summary statistics
 - `prompt-analyzer examples [--type rejected|repeated|all] [--limit N]` - Show examples
+- `prompt-analyzer recommend [--since 30d] [--project PATH] [--no-open]` - Generate Cursor rules and commands recommendations from recent prompts
 - `prompt-analyzer storage` - Show storage info
 - `prompt-analyzer storage clear [--older-than 30d]` - Clear old prompts
 
@@ -40,6 +42,23 @@ Prompts are scored 0-100 with deductions for:
 - **Vague Requests** (-15): Very short prompts or single-word questions lacking context
 
 The tool provides contextual suggestions for improvement based on detected issues.
+
+## Recommendations
+
+The `recommend` command analyzes your prompts to generate Cursor rules and commands recommendations:
+
+- **Global patterns**: Identifies common patterns across all your projects
+- **Project-specific**: Generates recommendations tailored to specific projects
+- **Existing detection**: Scans for existing `.cursorrules` files and commands to avoid duplicates
+- **Interactive HTML**: Opens a browser page with all recommendations, organized by project
+
+Example usage:
+```bash
+prompt-analyzer recommend                    # Analyze last 30 days
+prompt-analyzer recommend --since 7d        # Analyze last 7 days
+prompt-analyzer recommend --project /path   # Analyze specific project
+prompt-analyzer recommend --no-open         # Save HTML without opening browser
+```
 
 ## Storage
 
