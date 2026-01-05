@@ -8,6 +8,8 @@ from ..storage import PromptStorage
 from ..analysis import PromptAnalyzer
 from ..storage.paths import get_database_path
 from ..ui import format_stats, format_examples, format_storage_info, parse_time_range
+from ..recommend.analyzer import analyze_project_prompts, analyze_cross_project_patterns
+from ..recommend.html_output import generate_html, save_and_open_html
 
 
 def format_timestamp(iso_string: str) -> str:
@@ -286,4 +288,78 @@ def clear(confirm: bool, older_than: Optional[str]):
         click.echo(f"✅ Deleted {deleted} prompt(s).")
     except Exception as e:
         click.echo(f"Error: {str(e)}", err=True)
+
+
+@click.command()
+@click.option('--since', default='30d', help='Time range to analyze (e.g., 7d, 30d, 1h)')
+@click.option('--project', default=None, help='Filter to specific project path')
+@click.option('--no-open', is_flag=True, help='Print path instead of opening browser')
+def recommend(since: str, project: Optional[str], no_open: bool):
+    """Generate Cursor rules and commands recommendations from recent prompts."""
+    storage = PromptStorage()
+    
+    # Parse time range
+    since_timestamp = parse_time_range(since)
+    if since_timestamp is None:
+        click.echo(f"Error: Invalid time range format '{since}'. Use format like '7d', '30d', '1h'", err=True)
+        return
+    
+    # Get prompts
+    if project:
+        prompts = storage.list(since=since_timestamp, project_path=project)
+        if not prompts:
+            click.echo(f"No prompts found for project '{project}' in the last {since}.", err=True)
+            return
+        
+        click.echo(f"Analyzing {len(prompts)} prompt(s) from project '{project}'...", err=True)
+        
+        # Analyze project-specific patterns
+        project_recs = analyze_project_prompts(prompts, project_path=project)
+        global_recs = []
+        project_recommendations = {project: project_recs} if project_recs else {}
+    else:
+        # Get prompts grouped by project
+        prompts_by_project = storage.list_by_project(since=since_timestamp)
+        
+        if not prompts_by_project:
+            click.echo(f"No prompts found in the last {since}.", err=True)
+            return
+        
+        total_prompts = sum(len(prompts) for prompts in prompts_by_project.values())
+        click.echo(f"Analyzing {total_prompts} prompt(s) across {len(prompts_by_project)} project(s)...", err=True)
+        
+        # Analyze cross-project patterns
+        click.echo("Looking for global patterns...", err=True)
+        global_recs = analyze_cross_project_patterns(prompts_by_project)
+        
+        # Analyze each project
+        project_recommendations = {}
+        for project_path, prompts in prompts_by_project.items():
+            click.echo(f"Analyzing project: {project_path}...", err=True)
+            recs = analyze_project_prompts(prompts, project_path=project_path)
+            if recs:
+                project_recommendations[project_path] = recs
+    
+    # Generate HTML
+    click.echo("Generating recommendations page...", err=True)
+    html_content = generate_html(global_recs, project_recommendations)
+    
+    # Save and open
+    file_path = save_and_open_html(html_content)
+    
+    if no_open:
+        click.echo(f"\nRecommendations saved to: {file_path}")
+    else:
+        click.echo(f"\n✅ Recommendations page opened in browser")
+        click.echo(f"   File saved to: {file_path}")
+    
+    # Summary
+    total_recs = len(global_recs) + sum(len(recs) for recs in project_recommendations.values())
+    if total_recs > 0:
+        click.echo(f"\nFound {total_recs} recommendation(s):")
+        if global_recs:
+            click.echo(f"  - {len(global_recs)} global")
+        for project_path, recs in project_recommendations.items():
+            if recs:
+                click.echo(f"  - {len(recs)} for {project_path}")
 

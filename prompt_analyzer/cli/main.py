@@ -3,7 +3,7 @@
 import click
 
 from .setup import setup
-from .commands import stats, examples, storage_group
+from .commands import stats, examples, storage_group, recommend
 
 
 @click.group()
@@ -17,6 +17,7 @@ cli.add_command(setup)
 cli.add_command(stats)
 cli.add_command(examples)
 cli.add_command(storage_group, name='storage')
+cli.add_command(recommend)
 
 
 if __name__ == "__main__":

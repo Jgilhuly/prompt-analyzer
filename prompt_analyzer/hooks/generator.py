@@ -52,6 +52,7 @@ try {
       user_action TEXT CHECK(user_action IN ('accepted', 'rejected', 'edited') OR user_action IS NULL),
       session_id TEXT NOT NULL,
       sequence_number INTEGER NOT NULL,
+      project_path TEXT,
       analysis_score INTEGER CHECK(analysis_score >= 0 AND analysis_score <= 100),
       analysis_flags TEXT,
       analysis_suggestions TEXT,
@@ -61,12 +62,20 @@ try {
     )
   `);
   
+  // Add project_path column to existing tables if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE prompts ADD COLUMN project_path TEXT`);
+  } catch (e) {
+    // Column already exists, ignore
+  }
+  
   // Create indexes
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_timestamp ON prompts(timestamp);
     CREATE INDEX IF NOT EXISTS idx_session_id ON prompts(session_id);
     CREATE INDEX IF NOT EXISTS idx_user_action ON prompts(user_action);
     CREATE INDEX IF NOT EXISTS idx_analysis_score ON prompts(analysis_score);
+    CREATE INDEX IF NOT EXISTS idx_project_path ON prompts(project_path);
   `);
 } catch (error) {
   console.error('[prompt-analyzer] Failed to initialize database:', error.message);
@@ -102,7 +111,8 @@ function insertPrompt(data) {
       hook_event_name,
       prompt_text,
       response_text,
-      user_action
+      user_action,
+      project_path
     } = data;
 
     // Use conversation_id as session_id
@@ -114,8 +124,8 @@ function insertPrompt(data) {
     const insert = db.prepare(`
       INSERT INTO prompts (
         id, timestamp, prompt_text, response_text, user_action,
-        session_id, sequence_number
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        session_id, sequence_number, project_path
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     insert.run(
@@ -125,7 +135,8 @@ function insertPrompt(data) {
       response_text || null,
       user_action || null,
       sessionId,
-      sequenceNumber
+      sequenceNumber,
+      project_path || null
     );
 
     return { success: true, promptId };
@@ -171,6 +182,10 @@ function handleHook(input, hookType) {
     const hasResponseFields = input.response !== undefined || input.response_text !== undefined || 
                               input.content !== undefined || (input.text && input.response !== undefined);
 
+    // Extract project path from workspace_roots
+    const workspaceRoots = input.workspace_roots || input.workspaceRoots || [];
+    const projectPath = workspaceRoots.length > 0 ? workspaceRoots[0] : null;
+
     // Handle different hook event types
     if (hook_event_name === 'beforeSubmitPrompt' || (hook_event_name === 'unknown' && hasPromptFields && !hasResponseFields)) {
       // Extract prompt text from input
@@ -183,7 +198,8 @@ function handleHook(input, hookType) {
         generation_id,
         hook_event_name: 'beforeSubmitPrompt',
         prompt_text: promptText,
-        user_action: null
+        user_action: null,
+        project_path: projectPath
       });
     } else if (hook_event_name === 'afterAgentResponse' || (hook_event_name === 'unknown' && hasResponseFields)) {
       // Extract response text
@@ -209,7 +225,8 @@ function handleHook(input, hookType) {
           hook_event_name: 'afterAgentResponse',
           prompt_text: '',
           response_text: responseText,
-          user_action: null
+          user_action: null,
+          project_path: projectPath
         });
       }
     } else {
@@ -224,7 +241,8 @@ function handleHook(input, hookType) {
           hook_event_name: hook_event_name,
           prompt_text: promptText || '',
           response_text: responseText || null,
-          user_action: input.user_action || null
+          user_action: input.user_action || null,
+          project_path: projectPath
         });
       }
     }

@@ -25,6 +25,7 @@ class PromptStorage:
         user_action: Optional[str] = None,
         session_id: Optional[str] = None,
         sequence_number: Optional[int] = None,
+        project_path: Optional[str] = None,
         analysis: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Create a new prompt record."""
@@ -61,10 +62,10 @@ class PromptStorage:
         cursor.execute("""
             INSERT INTO prompts (
                 id, timestamp, prompt_text, response_text, user_action,
-                session_id, sequence_number,
+                session_id, sequence_number, project_path,
                 analysis_score, analysis_flags, analysis_suggestions,
                 analysis_is_repeated, analysis_repeated_with
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             prompt_id,
             timestamp,
@@ -73,6 +74,7 @@ class PromptStorage:
             user_action,
             session_id,
             sequence_number,
+            project_path,
             analysis_score,
             analysis_flags,
             analysis_suggestions,
@@ -136,6 +138,7 @@ class PromptStorage:
         since: Optional[str] = None,
         user_action: Optional[str] = None,
         session_id: Optional[str] = None,
+        project_path: Optional[str] = None,
         include_excluded: bool = False,
     ) -> List[Dict[str, Any]]:
         """List prompts with optional filters.
@@ -169,6 +172,10 @@ class PromptStorage:
             query += " AND session_id = ?"
             params.append(session_id)
 
+        if project_path:
+            query += " AND project_path = ?"
+            params.append(project_path)
+
         query += " ORDER BY timestamp DESC"
 
         if limit:
@@ -198,6 +205,7 @@ class PromptStorage:
         since: Optional[str] = None,
         user_action: Optional[str] = None,
         session_id: Optional[str] = None,
+        project_path: Optional[str] = None,
         include_excluded: bool = False,
     ) -> int:
         """Count prompts with optional filters.
@@ -228,6 +236,10 @@ class PromptStorage:
         if session_id:
             query += " AND session_id = ?"
             params.append(session_id)
+
+        if project_path:
+            query += " AND project_path = ?"
+            params.append(project_path)
 
         cursor.execute(query, params)
         rows = cursor.fetchall()
@@ -306,5 +318,91 @@ class PromptStorage:
         if analysis:
             result["analysis"] = analysis
 
+        # Add project_path if present
+        if "project_path" in row.keys() and row["project_path"]:
+            result["project_path"] = row["project_path"]
+
         return result
+    
+    def list_by_project(
+        self,
+        since: Optional[str] = None,
+        limit: Optional[int] = None,
+        include_excluded: bool = False,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """List prompts grouped by project path.
+        
+        Args:
+            since: ISO timestamp to filter prompts
+            limit: Maximum number of prompts per project
+            include_excluded: If True, include prompts that would normally be excluded
+            
+        Returns:
+            Dictionary mapping project_path to list of prompts
+        """
+        conn = self.db.connect()
+        cursor = conn.cursor()
+
+        query = "SELECT * FROM prompts WHERE 1=1"
+        params = []
+
+        if since:
+            query += " AND timestamp >= ?"
+            params.append(since)
+
+        query += " ORDER BY timestamp DESC"
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        prompts = [self._row_to_dict(row) for row in rows]
+        
+        # Filter out excluded prompts unless explicitly requested
+        if not include_excluded:
+            prompts = [
+                prompt for prompt in prompts
+                if not should_exclude_prompt(prompt.get('prompt_text', ''))
+            ]
+        
+        # Group by project_path
+        by_project: Dict[str, List[Dict[str, Any]]] = {}
+        for prompt in prompts:
+            project_path = prompt.get('project_path') or 'unknown'
+            if project_path not in by_project:
+                by_project[project_path] = []
+            by_project[project_path].append(prompt)
+        
+        # Apply limit per project if specified
+        if limit:
+            for project_path in by_project:
+                by_project[project_path] = by_project[project_path][:limit]
+        
+        return by_project
+    
+    def get_unique_projects(
+        self,
+        since: Optional[str] = None,
+    ) -> List[str]:
+        """Get list of unique project paths.
+        
+        Args:
+            since: ISO timestamp to filter prompts
+            
+        Returns:
+            List of unique project paths
+        """
+        conn = self.db.connect()
+        cursor = conn.cursor()
+
+        query = "SELECT DISTINCT project_path FROM prompts WHERE project_path IS NOT NULL"
+        params = []
+
+        if since:
+            query += " AND timestamp >= ?"
+            params.append(since)
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        
+        return [row[0] for row in rows if row[0]]
 

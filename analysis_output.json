@@ -1,0 +1,64 @@
+{
+  "recommendations": [
+    {
+      "type": "Command",
+      "name": "test-in-terminal",
+      "content": "When asked to test something in the terminal or verify functionality, provide a clear command that can be run to test the feature. Include expected output or behavior. Always test changes before marking tasks as complete.",
+      "reasoning": "Multiple prompts (1, 2, 10, 19, 20, 21, 22, 23, 27, 28, 30) show a pattern of testing and verification requests. This command would standardize the testing workflow."
+    },
+    {
+      "type": "Command",
+      "name": "create-project-docs",
+      "content": "When asked to explain project structure or create documentation, generate a single markdown file with mermaid diagrams showing:\n- Project architecture\n- Component relationships\n- Data flow\n- Key workflows\n\nUse dark mode compatible colors for mermaid diagrams. Place the file in .cursor/docs unless otherwise specified.",
+      "reasoning": "Prompts 18 and 35 both request project documentation with mermaid diagrams. This command would automate this common documentation need."
+    },
+    {
+      "type": "Command",
+      "name": "move-commits-to-branch",
+      "content": "When asked to move recent commits to a new branch, use this workflow:\n1. Create a new branch from the current HEAD\n2. Reset the original branch (main/master) to the commit before the commits to move\n3. Checkout the new branch\n4. Provide the git commands needed\n\nExample: If moving last 3 commits from main to feature-branch:\n- git branch feature-branch\n- git reset --hard HEAD~3\n- git checkout feature-branch",
+      "reasoning": "Prompt 11 shows a need for git branch management workflow. This command would standardize this common git operation."
+    },
+    {
+      "type": "Rule",
+      "name": "bug-report-handling",
+      "content": "When a user reports a bug with DOM paths or error messages:\n1. Extract the error type, message, and relevant code location\n2. Identify the root cause before proposing fixes\n3. Test the fix with the specific scenario described\n4. Verify the UI updates correctly and database changes persist (if applicable)\n5. Check for related edge cases (e.g., unassigned events, null values)\n\nAlways ask for clarification if the bug report is incomplete, but proactively investigate common failure patterns.",
+      "reasoning": "Prompts 12, 15, 19-29 show a pattern of bug reporting with DOM paths and error details. This rule would ensure consistent bug handling."
+    },
+    {
+      "type": "Command",
+      "name": "create-feature-plan",
+      "content": "When asked to create a plan for a feature:\n1. Analyze the requirements\n2. Break down into specific, actionable tasks\n3. Create a todo list using the todo_write tool\n4. Consider edge cases and error handling\n5. Include testing steps\n6. Save the plan as a markdown file in .cursor/docs\n\nMark todos as in_progress as you work through them, starting with the first one.",
+      "reasoning": "Prompts 8 and 31 show requests for feature planning. This command would standardize the planning workflow."
+    },
+    {
+      "type": "Rule",
+      "name": "state-persistence-check",
+      "content": "When implementing features that store state (UI state, form data, preferences):\n1. Verify state persists across page refreshes\n2. Check if state should be stored in localStorage, sessionStorage, or backend\n3. Test state restoration after refresh\n4. Handle edge cases where state might be lost\n\nIf state only holds until refresh, investigate persistence mechanism and fix accordingly.",
+      "reasoning": "Prompt 10 shows a common issue where state doesn't persist across refreshes. This rule would prevent this recurring problem."
+    },
+    {
+      "type": "Rule",
+      "name": "filter-common-prompts",
+      "content": "When analyzing prompts for patterns, filter out these common pre-saved prompts:\n- \"Issue reproduced, please proceed.\"\n- \"The issue has been fixed. Please clean up the instrumentation.\"\n- \"Implement the plan as specified, it is attached for your reference. Do NOT edit the plan file itself. To-do's from the plan have already been created. Do not create them again. Mark them as in_progress as you work, starting with the first one. Don't stop until you have completed all the to-dos.\"\n\nThese are workflow prompts and don't represent coding patterns worth automating.",
+      "reasoning": "Prompt 7 explicitly requests filtering these common prompts. This rule would ensure they're excluded from pattern analysis."
+    },
+    {
+      "type": "Rule",
+      "name": "cursor-cli-preferences",
+      "content": "When using cursor-agent CLI commands, always include the \"-m composer-1\" flag to specify the model. Use cursor CLI for generating rules and commands dynamically rather than relying on predefined patterns.",
+      "reasoning": "Prompts 3 and 4 show preferences for using cursor CLI with specific flags and for dynamic rule generation. This rule would ensure consistent CLI usage."
+    },
+    {
+      "type": "Command",
+      "name": "debug-matching-logic",
+      "content": "When debugging matching logic (e.g., event matching, fuzzy matching):\n1. Explain how the current matching algorithm works\n2. Identify potential issues with the matching logic\n3. Provide options to:\n   - Force a rerun of matching logic\n   - Clear cached matches\n   - Switch to direct matching instead of fuzzy matching\n4. Test with edge cases (unassigned items, null values, etc.)\n\nIf fuzzy matching causes incorrect matches, consider switching to direct matches with domain filtering.",
+      "reasoning": "Prompts 30, 31, and 32 show debugging of matching logic. This command would standardize this debugging workflow."
+    },
+    {
+      "type": "Rule",
+      "name": "error-handling-patterns",
+      "content": "When implementing features that can fail:\n1. Provide clear error messages\n2. Handle null/undefined cases gracefully\n3. Show loading states during async operations\n4. Verify database updates persist even if UI doesn't update immediately\n5. Test error scenarios, not just happy paths\n\nIf an error doesn't appear but the change didn't take effect, investigate both the error handling and the underlying operation.",
+      "reasoning": "Prompts 22, 23, 27, 28 show patterns of error handling issues. This rule would ensure robust error handling."
+    }
+  ]
+}

@@ -49,6 +49,7 @@ class Database:
                 user_action TEXT CHECK(user_action IN ('accepted', 'rejected', 'edited') OR user_action IS NULL),
                 session_id TEXT NOT NULL,
                 sequence_number INTEGER NOT NULL,
+                project_path TEXT,
                 analysis_score INTEGER CHECK(analysis_score >= 0 AND analysis_score <= 100),
                 analysis_flags TEXT,  -- JSON array of quality flags
                 analysis_suggestions TEXT,  -- JSON array of suggestions
@@ -57,6 +58,13 @@ class Database:
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Add project_path column to existing tables if it doesn't exist
+        try:
+            cursor.execute("ALTER TABLE prompts ADD COLUMN project_path TEXT")
+        except sqlite3.OperationalError:
+            # Column already exists, ignore
+            pass
 
         # Create indexes for common queries
         cursor.execute("""
@@ -70,6 +78,9 @@ class Database:
         """)
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_analysis_score ON prompts(analysis_score)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_project_path ON prompts(project_path)
         """)
 
         conn.commit()
