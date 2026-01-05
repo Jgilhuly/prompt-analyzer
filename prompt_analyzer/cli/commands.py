@@ -308,70 +308,51 @@ def recommend(since: str, project: Optional[str], no_open: bool):
     # Get all prompts for the log view
     all_prompts = storage.list(since=since_timestamp)
     
-    # Get prompts
+    # Determine project paths to scan and get prompts
     if project:
+        project_paths_to_scan = [project] if project else []
         prompts = storage.list(since=since_timestamp, project_path=project)
         if not prompts:
             click.echo(f"No prompts found for project '{project}' in the last {since}.", err=True)
             return
-        
-        click.echo(f"Analyzing {len(prompts)} prompt(s) from project '{project}'...", err=True)
-        
-        # Analyze project-specific patterns
-        project_recs = analyze_project_prompts(prompts, project_path=project)
-        global_recs = []
-        project_recommendations = {project: project_recs} if project_recs else {}
-        project_paths_to_scan = [project] if project else []
+        prompts_by_project = None
     else:
         # Get prompts grouped by project
         prompts_by_project = storage.list_by_project(since=since_timestamp)
-        
         if not prompts_by_project:
             click.echo(f"No prompts found in the last {since}.", err=True)
             return
+        project_paths_to_scan = [p for p in prompts_by_project.keys() if p]
+        prompts = None
+    
+    # Scan for existing rules and commands early (before analysis)
+    click.echo("Scanning for existing rules and commands...", err=True)
+    existing = scan_all_existing(project_paths=project_paths_to_scan, include_cwd=True)
+    
+    # Analyze prompts
+    if project:
+        click.echo(f"Analyzing {len(prompts)} prompt(s) from project '{project}'...", err=True)
+        
+        # Analyze project-specific patterns
+        project_recs = analyze_project_prompts(prompts, project_path=project, existing=existing)
+        global_recs = []
+        project_recommendations = {project: project_recs} if project_recs else {}
+    else:
         
         total_prompts = sum(len(prompts) for prompts in prompts_by_project.values())
         click.echo(f"Analyzing {total_prompts} prompt(s) across {len(prompts_by_project)} project(s)...", err=True)
         
         # Analyze cross-project patterns
         click.echo("Looking for global patterns...", err=True)
-        global_recs = analyze_cross_project_patterns(prompts_by_project)
+        global_recs = analyze_cross_project_patterns(prompts_by_project, existing=existing)
         
         # Analyze each project
         project_recommendations = {}
-        project_paths_to_scan = []
         for project_path, prompts in prompts_by_project.items():
             click.echo(f"Analyzing project: {project_path}...", err=True)
-            recs = analyze_project_prompts(prompts, project_path=project_path)
+            recs = analyze_project_prompts(prompts, project_path=project_path, existing=existing)
             if recs:
                 project_recommendations[project_path] = recs
-            if project_path:
-                project_paths_to_scan.append(project_path)
-    
-    # Scan for existing rules and commands
-    click.echo("Scanning for existing rules and commands...", err=True)
-    existing = scan_all_existing(project_paths=project_paths_to_scan, include_cwd=True)
-    
-    # Filter out duplicates from recommendations
-    existing_names = set()
-    for rule in existing.get('rules', []):
-        existing_names.add(rule.get('name', '').lower())
-    for cmd in existing.get('commands', []):
-        existing_names.add(cmd.get('name', '').lower())
-    
-    def filter_duplicates(recs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Filter out recommendations that match existing names."""
-        filtered = []
-        for rec in recs:
-            rec_name = rec.get('name', '').lower()
-            if rec_name not in existing_names:
-                filtered.append(rec)
-        return filtered
-    
-    # Filter duplicates
-    global_recs = filter_duplicates(global_recs)
-    for project_path in project_recommendations:
-        project_recommendations[project_path] = filter_duplicates(project_recommendations[project_path])
     
     # Generate HTML
     click.echo("Generating recommendations page...", err=True)

@@ -38,10 +38,57 @@ def format_prompts_for_analysis(prompts: List[Dict[str, Any]], max_prompts: int 
     return "\n".join(formatted)
 
 
+def format_existing_for_prompt(existing: Dict[str, List[Dict[str, Any]]]) -> str:
+    """Format existing rules and commands for inclusion in the prompt.
+    
+    Args:
+        existing: Dictionary with 'rules' and 'commands' keys, each containing lists
+        
+    Returns:
+        Formatted string describing existing rules and commands
+    """
+    rules = existing.get('rules', [])
+    commands = existing.get('commands', [])
+    
+    if not rules and not commands:
+        return ""
+    
+    parts = []
+    parts.append("EXISTING RULES AND COMMANDS (DO NOT DUPLICATE):")
+    parts.append("The following rules and commands already exist. Do not recommend anything that duplicates or closely matches these:\n")
+    
+    if rules:
+        parts.append("EXISTING RULES:")
+        for rule in rules:
+            name = rule.get('name', 'Unnamed')
+            scope = rule.get('scope', 'project')
+            content = rule.get('content', '')
+            content_preview = content[:200] + ('...' if len(content) > 200 else '')
+            scope_label = 'User Global' if scope == 'user' else 'Project'
+            parts.append(f"  - {name} ({scope_label})")
+            parts.append(f"    Content preview: {content_preview}")
+        parts.append("")
+    
+    if commands:
+        parts.append("EXISTING COMMANDS:")
+        for cmd in commands:
+            name = cmd.get('name', 'Unnamed')
+            scope = cmd.get('scope', 'project')
+            content = cmd.get('content', '')
+            content_preview = content[:200] + ('...' if len(content) > 200 else '')
+            scope_label = 'User Global' if scope == 'user' else 'Project'
+            parts.append(f"  - {name} ({scope_label})")
+            parts.append(f"    Content preview: {content_preview}")
+        parts.append("")
+    
+    return "\n".join(parts)
+
+
 def generate_recommendations_prompt(
     prompts: List[Dict[str, Any]],
     scope: str = "project",
     project_path: Optional[str] = None,
+    existing: Optional[Dict[str, List[Dict[str, Any]]]] = None,
 ) -> str:
     """Generate the prompt to send to cursor-agent for analysis.
     
@@ -49,6 +96,7 @@ def generate_recommendations_prompt(
         prompts: List of prompt dictionaries to analyze
         scope: Either "project" or "global"
         project_path: Optional project path for context
+        existing: Optional dictionary with 'rules' and 'commands' keys for existing items
         
     Returns:
         Formatted prompt string
@@ -61,9 +109,16 @@ def generate_recommendations_prompt(
     elif scope == "global":
         scope_context = "\n\nThese prompts span multiple projects. Look for patterns that would benefit from global rules or commands."
     
+    # Format existing rules/commands if provided
+    existing_section = ""
+    if existing:
+        existing_formatted = format_existing_for_prompt(existing)
+        if existing_formatted:
+            existing_section = f"\n\n{existing_formatted}"
+    
     prompt = f"""Analyze these prompts from a coding session and identify patterns that would benefit from Cursor rules or commands.{scope_context}
 
-{formatted_prompts}
+{formatted_prompts}{existing_section}
 
 For each pattern you identify, provide:
 1. Type: Either "Rule" (for persistent guidance/instructions) or "Command" (for actions to invoke)
@@ -171,12 +226,14 @@ def call_cursor_agent(prompt: str) -> Optional[Dict[str, Any]]:
 def analyze_project_prompts(
     prompts: List[Dict[str, Any]],
     project_path: Optional[str] = None,
+    existing: Optional[Dict[str, List[Dict[str, Any]]]] = None,
 ) -> List[Dict[str, Any]]:
     """Analyze prompts for a specific project.
     
     Args:
         prompts: List of prompts from the project
         project_path: Optional project path for context
+        existing: Optional dictionary with 'rules' and 'commands' keys for existing items
         
     Returns:
         List of recommendation dictionaries
@@ -184,7 +241,12 @@ def analyze_project_prompts(
     if not prompts:
         return []
     
-    prompt_text = generate_recommendations_prompt(prompts, scope="project", project_path=project_path)
+    prompt_text = generate_recommendations_prompt(
+        prompts, 
+        scope="project", 
+        project_path=project_path,
+        existing=existing
+    )
     response = call_cursor_agent(prompt_text)
     
     if not response:
@@ -202,11 +264,13 @@ def analyze_project_prompts(
 
 def analyze_cross_project_patterns(
     prompts_by_project: Dict[str, List[Dict[str, Any]]],
+    existing: Optional[Dict[str, List[Dict[str, Any]]]] = None,
 ) -> List[Dict[str, Any]]:
     """Analyze prompts across multiple projects to find global patterns.
     
     Args:
         prompts_by_project: Dictionary mapping project_path to list of prompts
+        existing: Optional dictionary with 'rules' and 'commands' keys for existing items
         
     Returns:
         List of recommendation dictionaries for global rules/commands
@@ -231,12 +295,19 @@ def analyze_cross_project_patterns(
     formatted_prompts = format_prompts_for_analysis(all_prompts, max_prompts=50)
     project_list = "\n".join(project_summary)
     
+    # Format existing rules/commands if provided
+    existing_section = ""
+    if existing:
+        existing_formatted = format_existing_for_prompt(existing)
+        if existing_formatted:
+            existing_section = f"\n\n{existing_formatted}"
+    
     prompt = f"""Analyze these prompts from multiple projects and identify patterns that appear across projects. These should be global rules or commands.
 
 Projects analyzed:
 {project_list}
 
-{formatted_prompts}
+{formatted_prompts}{existing_section}
 
 For each cross-project pattern you identify, provide:
 1. Type: Either "Rule" (for persistent guidance/instructions) or "Command" (for actions to invoke)
