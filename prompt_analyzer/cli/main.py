@@ -8,7 +8,7 @@ from .commands import stats, examples, storage_group, recommend
 
 @click.group()
 def cli():
-    """Prompt Analyzer - Analyze your Cursor prompts for quality and effectiveness."""
+    """Cursor Prompts - Analyze your Cursor prompts for quality and effectiveness."""
     pass
 
 

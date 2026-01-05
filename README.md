@@ -1,18 +1,18 @@
-# Prompt Analyzer
+# Cursor Prompts
 
 A local-first tool that captures and analyzes Cursor prompts for quality and effectiveness.
 
 ## Installation
 
 ```bash
-pip install prompt-analyzer
+pip install cursor-prompts
 ```
 
 ## Setup
 
 1. **Configure hooks**:
    ```bash
-   prompt-analyzer setup
+   cursor-prompts setup
    ```
    This creates hooks in `~/.cursor/` and initializes storage in `~/.prompt-analyzer/`.
 
@@ -20,18 +20,18 @@ pip install prompt-analyzer
 
 3. **Review your prompts**:
    ```bash
-   prompt-analyzer stats              # View statistics
-   prompt-analyzer examples --type rejected  # See problematic prompts
-   prompt-analyzer recommend          # Generate Cursor rules and commands recommendations
+   cursor-prompts stats              # View statistics
+   cursor-prompts examples --type rejected  # See problematic prompts
+   cursor-prompts recommend          # Generate Cursor rules and commands recommendations
    ```
 
 ## Quick Commands
 
-- `prompt-analyzer stats [--since 7d]` - Show summary statistics
-- `prompt-analyzer examples [--type rejected|repeated|all] [--limit N]` - Show examples
-- `prompt-analyzer recommend [--since 30d] [--project PATH] [--no-open]` - Generate Cursor rules and commands recommendations from recent prompts
-- `prompt-analyzer storage` - Show storage info
-- `prompt-analyzer storage clear [--older-than 30d]` - Clear old prompts
+- `cursor-prompts stats [--since 7d]` - Show summary statistics
+- `cursor-prompts examples [--type rejected|repeated|all] [--limit N]` - Show examples
+- `cursor-prompts recommend [--since 30d] [--project PATH] [--no-open]` - Generate Cursor rules and commands recommendations from recent prompts
+- `cursor-prompts storage` - Show storage info
+- `cursor-prompts storage clear [--older-than 30d]` - Clear old prompts
 
 ## Analysis Criteria
 
@@ -54,10 +54,10 @@ The `recommend` command analyzes your prompts to generate Cursor rules and comma
 
 Example usage:
 ```bash
-prompt-analyzer recommend                    # Analyze last 30 days
-prompt-analyzer recommend --since 7d        # Analyze last 7 days
-prompt-analyzer recommend --project /path   # Analyze specific project
-prompt-analyzer recommend --no-open         # Save HTML without opening browser
+cursor-prompts recommend                    # Analyze last 30 days
+cursor-prompts recommend --since 7d        # Analyze last 7 days
+cursor-prompts recommend --project /path   # Analyze specific project
+cursor-prompts recommend --no-open         # Save HTML without opening browser
 ```
 
 ## Storage
@@ -65,7 +65,7 @@ prompt-analyzer recommend --no-open         # Save HTML without opening browser
 All data is stored locally:
 - Database: `~/.prompt-analyzer/data/prompts.db`
 - Config: `~/.prompt-analyzer/config.json`
-- Hooks: `~/.cursor/hooks.json` and `~/.cursor/hooks/prompt-analyzer.js`
+- Hooks: `~/.cursor/hooks.json` and `~/.cursor/hooks/cursor-prompts.js`
 
 ## Requirements
 

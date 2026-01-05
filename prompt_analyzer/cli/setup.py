@@ -1,4 +1,4 @@
-"""Setup command for prompt-analyzer."""
+"""Setup command for cursor-prompts."""
 
 import click
 from pathlib import Path
@@ -24,8 +24,8 @@ from ..storage import Database, ensure_directories
     help="Overwrite existing hooks configuration",
 )
 def setup(storage_path: Path, hooks_dir: Path, overwrite: bool):
-    """Initialize prompt-analyzer: set up storage and install Cursor hooks."""
-    click.echo("Setting up prompt-analyzer...")
+    """Initialize cursor-prompts: set up storage and install Cursor hooks."""
+    click.echo("Setting up cursor-prompts...")
     
     # Initialize storage
     click.echo("Initializing storage...")
@@ -56,7 +56,7 @@ def setup(storage_path: Path, hooks_dir: Path, overwrite: bool):
     if success:
         click.echo(f"✓ {message}")
         click.echo("\nSetup complete! Prompts will now be captured automatically.")
-        click.echo("Use 'prompt-analyzer stats' to view your prompt statistics.")
+        click.echo("Use 'cursor-prompts stats' to view your prompt statistics.")
     else:
         click.echo(f"✗ {message}", err=True)
         raise click.Abort()

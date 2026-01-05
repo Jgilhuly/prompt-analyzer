@@ -21,9 +21,9 @@ def get_hooks_json_path() -> Path:
 
 
 def get_hook_script_path() -> Path:
-    """Get the hook script path (~/.cursor/hooks/prompt-analyzer.js)."""
+    """Get the hook script path (~/.cursor/hooks/cursor-prompts.js)."""
     hooks_dir = get_cursor_hooks_dir() / "hooks"
-    return hooks_dir / "prompt-analyzer.js"
+    return hooks_dir / "cursor-prompts.js"
 
 
 def check_and_install_better_sqlite3(hooks_dir: Path) -> tuple[bool, str]:
@@ -37,7 +37,7 @@ def check_and_install_better_sqlite3(hooks_dir: Path) -> tuple[bool, str]:
     """
     # Check if npm is available
     if not shutil.which("npm"):
-        return False, "npm not found. Please install Node.js and npm to use prompt-analyzer hooks."
+        return False, "npm not found. Please install Node.js and npm to use cursor-prompts hooks."
     
     # Ensure hooks directory exists
     hooks_dir.mkdir(parents=True, exist_ok=True)
@@ -52,9 +52,9 @@ def check_and_install_better_sqlite3(hooks_dir: Path) -> tuple[bool, str]:
     # Create package.json if it doesn't exist
     if not package_json_path.exists():
         package_json = {
-            "name": "prompt-analyzer-hooks",
+            "name": "cursor-prompts-hooks",
             "version": "1.0.0",
-            "description": "Dependencies for prompt-analyzer Cursor hooks",
+            "description": "Dependencies for cursor-prompts Cursor hooks",
             "private": True,
             "dependencies": {
                 "better-sqlite3": "^11.0.0"
@@ -182,7 +182,7 @@ def install_hooks(
                     elif not isinstance(existing_hooks["hooks"][event_name], list):
                         existing_hooks["hooks"][event_name] = []
                     
-                    # Remove any existing prompt-analyzer hooks for this event
+                    # Remove any existing cursor-prompts hooks for this event
                     script_path_str = str(hook_script_path)
                     existing_hooks["hooks"][event_name] = [
                         cmd for cmd in existing_hooks["hooks"][event_name]
@@ -219,7 +219,7 @@ def uninstall_hooks() -> tuple[bool, str]:
             hook_script_path.unlink()
         
         # Optionally remove package.json and node_modules if they exist
-        # (only if they were created by prompt-analyzer)
+        # (only if they were created by cursor-prompts)
         package_json_path = hooks_dir / "package.json"
         node_modules_path = hooks_dir / "node_modules"
         if package_json_path.exists():
@@ -227,7 +227,7 @@ def uninstall_hooks() -> tuple[bool, str]:
                 with open(package_json_path, 'r') as f:
                     package_data = json.load(f)
                     # Only remove if it's our package.json
-                    if package_data.get("name") == "prompt-analyzer-hooks":
+                    if package_data.get("name") == "cursor-prompts-hooks":
                         package_json_path.unlink()
                         # Remove node_modules if it exists
                         if node_modules_path.exists():
@@ -253,7 +253,7 @@ def uninstall_hooks() -> tuple[bool, str]:
                 hooks_json_path.unlink()
                 return True, "Hooks uninstalled successfully"
             
-            # Remove prompt-analyzer hooks from all events
+            # Remove cursor-prompts hooks from all events
             script_path_str = str(hook_script_path)
             for event_name in list(hooks_config.get("hooks", {}).keys()):
                 if isinstance(hooks_config["hooks"][event_name], list):

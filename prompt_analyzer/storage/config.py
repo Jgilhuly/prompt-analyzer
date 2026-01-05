@@ -8,7 +8,7 @@ from .paths import get_config_path
 
 
 class Config:
-    """Configuration manager for prompt-analyzer."""
+    """Configuration manager for cursor-prompts."""
 
     def __init__(self, config_path: Optional[Path] = None):
         """Initialize config manager."""
